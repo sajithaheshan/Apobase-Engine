@@ -1,0 +1,54 @@
+name: Build Android APK
+
+# Netlify එකෙන් API Call එකක් ආවම මේක Run වෙන්න කියන කමාන්ඩ් එක
+on:
+  repository_dispatch:
+    types: [build_apk]
+
+jobs:
+  build:
+    name: Build APK from URL
+    runs-on: ubuntu-latest # GitHub එකේ Free Linux Server එක
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Setup Java (JDK 17 for Android Build)
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Dependencies & Capacitor
+        run: |
+          npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Inject User URL to App
+        # Netlify එකෙන් එවන URL එක ඇප් එකට ඇතුල් කිරීම
+        run: |
+          echo "{\"appId\": \"com.apobase.app\", \"appName\": \"Apobase App\", \"webDir\": \"www\", \"server\": {\"url\": \"${{ github.event.client_payload.website_url }}\", \"cleartext\": true}}" > capacitor.config.json
+
+      - name: Add Android Platform
+        run: npx cap add android || true
+        
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build APK with Gradle
+        working-directory: ./android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug # දැනට Debug APK එක. පස්සේ Release කරන්න පුළුවන්.
+
+      - name: Upload APK File
+        uses: actions/upload-artifact@v3
+        with:
+          name: Apobase-Generated-App
+          path: android/app/build/outputs/apk/debug/app-debug.apk
